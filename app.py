@@ -25,6 +25,16 @@ def query_hf_api(
     model_url: str = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
     max_retries: int = 3
 ) -> Optional[bytes]:
+
+    # Enhanced configuration for realism
+    payload = {
+        "inputs": craft_realistic_prompt(prompt),
+        "parameters": {
+            "negative_prompt": "cartoon, anime, low quality, bad anatomy, blurry, unrealistic, painting, drawing, sketch",
+            "num_inference_steps": 75,  # Increased steps
+            "guidance_scale": 8.5,      # Higher guidance
+        }
+    }
     """
     Query the Hugging Face Inference API with robust error handling and retry mechanism.
     
