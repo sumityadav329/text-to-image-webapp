@@ -20,6 +20,44 @@ def load_environment():
     
     return os.getenv("HF_TOKEN")
 
+def convert_image(image: Image.Image, format: str = 'png') -> bytes:
+    """
+    Convert PIL Image to specified format in memory.
+    
+    Args:
+        image (Image.Image): Input PIL Image
+        format (str): Desired output format (png, jpg, webp)
+    
+    Returns:
+        bytes: Image converted to specified format
+    """
+    # Supported formats with their MIME types
+    supported_formats = {
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'webp': 'image/webp'
+    }
+    
+    # Normalize format
+    format = format.lower()
+    
+    # Validate format
+    if format not in supported_formats:
+        raise ValueError(f"Unsupported format. Choose from: {', '.join(supported_formats.keys())}")
+    
+    # Convert image
+    byte_array = io.BytesIO()
+    
+    # Special handling for JPEG to ensure no alpha channel
+    if format in ['jpg', 'jpeg']:
+        image = image.convert('RGB')
+    
+    # Save image to byte array
+    image.save(byte_array, format=format)
+    
+    return byte_array.getvalue()
+
 def craft_realistic_prompt(base_prompt: str) -> str:
     """
     Enhance prompts for more photorealistic results
@@ -49,16 +87,6 @@ def query_hf_api(
     model_url: str = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
     max_retries: int = 3
 ) -> Optional[bytes]:
-
-    # Enhanced configuration for realism
-    payload = {
-        "inputs": craft_realistic_prompt(prompt),
-        "parameters": {
-            "negative_prompt": "cartoon, anime, low quality, bad anatomy, blurry, unrealistic, painting, drawing, sketch",
-            "num_inference_steps": 75,  # Increased steps
-            "guidance_scale": 8.5,      # Higher guidance
-        }
-    }
     """
     Query the Hugging Face Inference API with robust error handling and retry mechanism.
     
@@ -85,12 +113,13 @@ def query_hf_api(
         "Content-Type": "application/json"
     }
     
-    # Payload with additional configuration
+    # Payload with enhanced configuration for realism
     payload = {
-        "inputs": prompt,
+        "inputs": craft_realistic_prompt(prompt),
         "parameters": {
-            "negative_prompt": "low quality, bad anatomy, blurry",
-            "num_inference_steps": 50,
+            "negative_prompt": "cartoon, anime, low quality, bad anatomy, blurry, unrealistic, painting, drawing, sketch",
+            "num_inference_steps": 75,  # Increased steps
+            "guidance_scale": 8.5,      # Higher guidance
         }
     }
     
@@ -116,20 +145,22 @@ def query_hf_api(
 
     raise RuntimeError("Unexpected error in image generation")
 
-def generate_image(prompt: str) -> Tuple[Optional[Image.Image], str]:
+def generate_image(prompt: str, output_format: str = 'png') -> Tuple[Optional[Image.Image], str, Optional[bytes]]:
     """
     Generate an image from a text prompt.
     
     Args:
         prompt (str): Text description for image generation
+        output_format (str): Desired output format
     
     Returns:
-        Tuple[Optional[Image.Image], str]: Generated PIL Image and status message
+        Tuple[Optional[Image.Image], str, Optional[bytes]]: 
+        Generated PIL Image, status message, and downloadable image bytes
     """
     try:
         # Validate prompt
         if not prompt or not prompt.strip():
-            return None, "Error: Prompt cannot be empty"
+            return None, "Error: Prompt cannot be empty", None
         
         # Generate image bytes
         image_bytes = query_hf_api(prompt)
@@ -137,11 +168,14 @@ def generate_image(prompt: str) -> Tuple[Optional[Image.Image], str]:
         # Convert to PIL Image
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         
-        return image, "Image generated successfully!"
+        # Convert image to specified format
+        downloadable_image = convert_image(image, output_format)
+        
+        return image, "Image generated successfully!", downloadable_image
     
     except Exception as e:
         print(f"Image generation error: {e}")
-        return None, f"Error: {str(e)}"
+        return None, f"Error: {str(e)}", None
 
 def create_gradio_interface():
     """
@@ -164,8 +198,15 @@ def create_gradio_interface():
                 # Prompt Input
                 text_input = gr.Textbox(
                     label="Enter your image prompt", 
-                    placeholder="e.g., 'Astronaut riding a bike on Mars at sunset'",
+                    placeholder="e.g., 'Photorealistic portrait of a woman in natural light'",
                     lines=3
+                )
+                
+                # Format Selection Dropdown
+                format_dropdown = gr.Dropdown(
+                    choices=['PNG', 'JPEG', 'WebP'],
+                    value='PNG',
+                    label="Output Image Format"
                 )
                 
                 # Generate Button
@@ -182,12 +223,18 @@ def create_gradio_interface():
         # Status Output
         status_output = gr.Textbox(label="Status")
         
+        # Download Button
+        download_button = gr.File(
+            label="Download Image",
+            file_count="single",
+            type="file"
+        )
+        
         # Event Handlers
-        generate_button.click(
+        generate_result = generate_button.click(
             fn=generate_image,
-            inputs=[text_input],
-            outputs=[output_image, status_output],
-            api_name="generate"
+            inputs=[text_input, format_dropdown],
+            outputs=[output_image, status_output, download_button]
         )
     
     return demo
