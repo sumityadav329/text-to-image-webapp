@@ -1,7 +1,4 @@
-accelerate
-git+https://github.com/huggingface/diffusers.git
-invisible_watermark
-torch
-transformers==4.42.4
-xformers
-sentencepiece
+gradio
+requests
+python-dotenv
+Pillow
