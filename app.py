@@ -146,7 +146,7 @@ def query_hf_api(
 
     raise RuntimeError("Unexpected error in image generation")
 
-def generate_image(prompt: str, output_format: str = 'png') -> Tuple[Optional[Image.Image], str, Optional[str]]:
+def generate_image(prompt: str, output_format: str = 'png') -> Tuple[Optional[Image.Image], str, Optional[bytes]]:
     """
     Generate an image from a text prompt.
     
@@ -155,8 +155,8 @@ def generate_image(prompt: str, output_format: str = 'png') -> Tuple[Optional[Im
         output_format (str): Desired output format
     
     Returns:
-        Tuple[Optional[Image.Image], str, Optional[str]]: 
-        Generated PIL Image, status message, and path to downloadable image
+        Tuple[Optional[Image.Image], str, Optional[bytes]]: 
+        Generated PIL Image, status message, and downloadable image bytes
     """
     try:
         # Validate prompt
@@ -170,17 +170,9 @@ def generate_image(prompt: str, output_format: str = 'png') -> Tuple[Optional[Im
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         
         # Convert image to specified format
-        image_data = convert_image(image, output_format)
+        downloadable_image = convert_image(image, output_format)
         
-        # Create a temporary file
-        with tempfile.NamedTemporaryFile(
-            delete=False, 
-            suffix=f'.{output_format.lower()}'
-        ) as temp_file:
-            temp_file.write(image_data)
-            temp_file_path = temp_file.name
-        
-        return image, "Image generated successfully!", temp_file_path
+        return image, "Image generated successfully!", downloadable_image
     
     except Exception as e:
         print(f"Image generation error: {e}")
@@ -201,6 +193,9 @@ def create_gradio_interface():
         gr.Markdown("# 🎨 AI Image Generator")
         gr.Markdown("Generate stunning images from your text prompts using AI!")
         
+        # State to store generated image bytes
+        image_bytes_state = gr.State(None)
+        
         # Input and Output Components
         with gr.Row():
             with gr.Column(scale=3):
@@ -220,6 +215,9 @@ def create_gradio_interface():
                 
                 # Generate Button
                 generate_button = gr.Button("✨ Generate Image", variant="primary")
+                
+                # Download Button 
+                download_button = gr.Button("💾 Download Image", variant="secondary")
             
             # Output Image Display
             with gr.Column(scale=4):
@@ -232,18 +230,31 @@ def create_gradio_interface():
         # Status Output
         status_output = gr.Textbox(label="Status")
         
-        # Download Button 
-        download_button = gr.File(
-            label="Download Image",
-            file_count="single",
-            type="filepath"  # Use filepath type
-        )
-        
         # Event Handlers
         generate_result = generate_button.click(
             fn=generate_image,
             inputs=[text_input, format_dropdown],
-            outputs=[output_image, status_output, download_button]
+            outputs=[output_image, status_output, image_bytes_state]
+        )
+        
+        # Download event handler
+        def download_image(image_bytes):
+            if image_bytes is None:
+                return None
+            
+            # Create a temporary file
+            with tempfile.NamedTemporaryFile(
+                delete=False, 
+                suffix='.png',  # Default to PNG
+                prefix='ai_generated_'
+            ) as temp_file:
+                temp_file.write(image_bytes)
+                return temp_file.name
+        
+        download_button.click(
+            fn=download_image,
+            inputs=[image_bytes_state],
+            outputs=gr.File(label="Download Generated Image")
         )
     
     return demo
