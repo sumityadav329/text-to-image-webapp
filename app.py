@@ -147,7 +147,8 @@ def create_gradio_interface():
         title="🎨 AI Image Generator"
     ) as demo:
         # Title and Description
-        gr.Markdown("# 🎨 AI Image Generator")
+        gr.Markdown("# 🎨 AI Image Generator ")
+        gr.Markdown("This webapp is created with ❤ by Sumit Yadav as GenAI project. Credits to HuggingFace Spaces and StabilityAI")
         gr.Markdown("Generate stunning images from your text prompts using AI!")
         
         # Input and Output Components
