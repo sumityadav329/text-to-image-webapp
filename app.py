@@ -192,7 +192,7 @@ def main():
         demo.launch(
             server_name="0.0.0.0",  # Listen on all network interfaces
             server_port=7860,  # Default Gradio port
-            share=True  # Set to True for a public link
+            share=False  # Set to True for a public link
         )
     except Exception as e:
         print(f"Error launching Gradio app: {e}")
