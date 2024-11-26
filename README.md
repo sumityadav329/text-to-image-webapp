@@ -1,3 +1,20 @@
+---
+title: Img Genwebapp
+emoji: 🖼
+colorFrom: purple
+colorTo: red
+sdk: gradio
+sdk_version: 5.0.1
+app_file: app.py
+pinned: false
+license: mit
+---
+
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+
+
+
+
 # 🎨 AI Image Generator Web App
 
 Welcome to the **AI Image Generator** web application! This app allows you to generate stunning photorealistic images from text prompts using cutting-edge AI technology.
@@ -91,18 +108,6 @@ git clone https://github.com/sumityadav329/text-to-image-webapp.git
 Feel free to fork, modify, or contribute to this project! 😊
 
 
----
-title: Img Genwebapp
-emoji: 🖼
-colorFrom: purple
-colorTo: red
-sdk: gradio
-sdk_version: 5.0.1
-app_file: app.py
-pinned: false
-license: mit
----
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
 
 
