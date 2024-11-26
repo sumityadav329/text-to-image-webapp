@@ -1,122 +1,111 @@
+import os
 import gradio as gr
-import numpy as np
-import random
-import spaces
-import torch
-from diffusers import DiffusionPipeline
+from PIL import Image
+import io
+from utils import query_hf_api
 
-dtype = torch.bfloat16
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-pipe = DiffusionPipeline.from_pretrained("black-forest-labs/FLUX.1-schnell", torch_dtype=dtype).to(device)
-
-MAX_SEED = np.iinfo(np.int32).max
-MAX_IMAGE_SIZE = 2048
-
-@spaces.GPU()
-def infer(prompt, seed=42, randomize_seed=False, width=1024, height=1024, num_inference_steps=4, progress=gr.Progress(track_tqdm=True)):
-    if randomize_seed:
-        seed = random.randint(0, MAX_SEED)
-    generator = torch.Generator().manual_seed(seed)
-    image = pipe(
-            prompt = prompt, 
-            width = width,
-            height = height,
-            num_inference_steps = num_inference_steps, 
-            generator = generator,
-            guidance_scale=0.0
-    ).images[0] 
-    return image, seed
- 
-examples = [
-    "a tiny astronaut hatching from an egg on the moon",
-    "a cat holding a sign that says hello world",
-    "an anime illustration of a wiener schnitzel",
-]
-
-css="""
-#col-container {
-    margin: 0 auto;
-    max-width: 520px;
-}
-"""
-
-with gr.Blocks(css=css) as demo:
+def generate_image(prompt: str) -> Image.Image:
+    """
+    Generate an image from a text prompt.
     
-    with gr.Column(elem_id="col-container"):
-        gr.Markdown(f"""# FLUX.1 [schnell]
-12B param rectified flow transformer distilled from [FLUX.1 [pro]](https://blackforestlabs.ai/) for 4 step generation
-[[blog](https://blackforestlabs.ai/announcing-black-forest-labs/)] [[model](https://huggingface.co/black-forest-labs/FLUX.1-schnell)]
-        """)
+    Args:
+        prompt (str): Text description for image generation
+    
+    Returns:
+        Image.Image: Generated PIL Image
+    """
+    try:
+        # Generate image bytes
+        image_bytes = query_hf_api(prompt)
         
+        # Convert to PIL Image
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        
+        return image
+    
+    except Exception as e:
+        print(f"Image generation error: {e}")
+        return None
+
+def create_gradio_interface():
+    """
+    Create and configure the Gradio interface.
+    
+    Returns:
+        gr.Blocks: Configured Gradio interface
+    """
+    with gr.Blocks(
+        theme=gr.themes.Soft(), 
+        title="🎨 AI Image Generator"
+    ) as demo:
+        # Title and Description
+        gr.Markdown("# 🎨 AI Image Generator")
+        gr.Markdown("Generate stunning images from your text prompts using AI!")
+        
+        # Input and Output Components
         with gr.Row():
-            
-            prompt = gr.Text(
-                label="Prompt",
-                show_label=False,
-                max_lines=1,
-                placeholder="Enter your prompt",
-                container=False,
-            )
-            
-            run_button = gr.Button("Run", scale=0)
-        
-        result = gr.Image(label="Result", show_label=False)
-        
-        with gr.Accordion("Advanced Settings", open=False):
-            
-            seed = gr.Slider(
-                label="Seed",
-                minimum=0,
-                maximum=MAX_SEED,
-                step=1,
-                value=0,
-            )
-            
-            randomize_seed = gr.Checkbox(label="Randomize seed", value=True)
-            
-            with gr.Row():
-                
-                width = gr.Slider(
-                    label="Width",
-                    minimum=256,
-                    maximum=MAX_IMAGE_SIZE,
-                    step=32,
-                    value=1024,
+            with gr.Column(scale=3):
+                # Prompt Input
+                text_input = gr.Textbox(
+                    label="Enter your image prompt", 
+                    placeholder="e.g., 'Astronaut riding a bike on Mars at sunset'",
+                    lines=3
                 )
                 
-                height = gr.Slider(
-                    label="Height",
-                    minimum=256,
-                    maximum=MAX_IMAGE_SIZE,
-                    step=32,
-                    value=1024,
-                )
-            
-            with gr.Row():
+                # Advanced Options
+                with gr.Accordion("Advanced Options", open=False):
+                    steps_slider = gr.Slider(
+                        minimum=10, 
+                        maximum=100, 
+                        value=50, 
+                        step=1, 
+                        label="Inference Steps"
+                    )
+                    guidance_slider = gr.Slider(
+                        minimum=1, 
+                        maximum=20, 
+                        value=7.5, 
+                        step=0.5, 
+                        label="Guidance Scale"
+                    )
                 
-  
-                num_inference_steps = gr.Slider(
-                    label="Number of inference steps",
-                    minimum=1,
-                    maximum=50,
-                    step=1,
-                    value=4,
+                # Generate Button
+                generate_button = gr.Button("✨ Generate Image", variant="primary")
+            
+            # Output Image Display
+            with gr.Column(scale=4):
+                output_image = gr.Image(
+                    label="Generated Image", 
+                    type="pil", 
+                    interactive=False
                 )
         
-        gr.Examples(
-            examples = examples,
-            fn = infer,
-            inputs = [prompt],
-            outputs = [result, seed],
-            cache_examples="lazy"
+        # Error Handling Output
+        error_output = gr.Textbox(label="Status", visible=False)
+        
+        # Event Handlers
+        generate_button.click(
+            fn=generate_image,
+            inputs=[text_input],
+            outputs=[output_image, error_output],
+            api_name="generate"
         )
+    
+    return demo
 
-    gr.on(
-        triggers=[run_button.click, prompt.submit],
-        fn = infer,
-        inputs = [prompt, seed, randomize_seed, width, height, num_inference_steps],
-        outputs = [result, seed]
-    )
+def main():
+    """
+    Main entry point for the Gradio application.
+    """
+    try:
+        demo = create_gradio_interface()
+        demo.launch(
+            server_name="0.0.0.0",  # Listen on all network interfaces
+            server_port=7860,  # Default Gradio port
+            share=True  # Set to True if you want a public link
+        )
+    except Exception as e:
+        print(f"Error launching Gradio app: {e}")
 
-demo.launch()
+if __name__ == "__main__":
+    main()
