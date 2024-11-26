@@ -171,7 +171,11 @@ def generate_image(prompt: str, output_format: str = 'png') -> Tuple[Optional[Im
         # Convert image to specified format
         downloadable_image = convert_image(image, output_format)
         
-        return image, "Image generated successfully!", downloadable_image
+        # Create a temporary file for download
+        temp_file = io.BytesIO(downloadable_image)
+        temp_file.name = f"generated_image.{output_format.lower()}"
+        
+        return image, "Image generated successfully!", temp_file
     
     except Exception as e:
         print(f"Image generation error: {e}")
@@ -223,11 +227,11 @@ def create_gradio_interface():
         # Status Output
         status_output = gr.Textbox(label="Status")
         
-        # Download Button
+        # Download Button (Fixed to use binary type)
         download_button = gr.File(
             label="Download Image",
             file_count="single",
-            type="file"
+            type="binary"  # Changed from 'file' to 'binary'
         )
         
         # Event Handlers
