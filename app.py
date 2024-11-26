@@ -20,6 +20,30 @@ def load_environment():
     
     return os.getenv("HF_TOKEN")
 
+def craft_realistic_prompt(base_prompt: str) -> str:
+    """
+    Enhance prompts for more photorealistic results
+    
+    Args:
+        base_prompt (str): Original user prompt
+    
+    Returns:
+        str: Enhanced, detailed prompt
+    """
+    realistic_modifiers = [
+        "photorealistic",
+        "high resolution",
+        "sharp focus",
+        "professional photography",
+        "natural lighting",
+        "detailed textures"
+    ]
+    
+    # Combine base prompt with realistic modifiers
+    enhanced_prompt = f"{' '.join(realistic_modifiers)}, {base_prompt}, shot on professional camera, 8k resolution"
+    
+    return enhanced_prompt
+
 def query_hf_api(
     prompt: str, 
     model_url: str = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
