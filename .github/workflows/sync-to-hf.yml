@@ -1,26 +1,20 @@
-name: Sync to Hugging Face Spaces
+name: Sync to Hugging Face hub
 
 on:
   push:
-    branches:
-      - main  # Trigger the workflow on pushes to the 'main' branch
+    branches: [main]
+
+  # to run this workflow manually from the Actions tab
+  workflow_dispatch:
 
 jobs:
-  deploy:
+  sync-to-hub:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v3
-
-    - name: Set up Git
-      run: |
-        git config --global user.email "sumityadav329@gmail.com"
-        git config --global user.name "Sumit Yadav"
-
-    - name: Push to Hugging Face
-      env:
-        HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      run: |
-        git remote add huggingface https://${{ secrets.HF_TOKEN }}@huggingface.co/spaces/sumityadav329/text-to-image-webapp
-        git push huggingface main --force
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Push to hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: git push --force https://sumityadav329:$HF_TOKEN@huggingface.co/spaces/sumityadav329/text-to-image-webapp main
