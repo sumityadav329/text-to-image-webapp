@@ -3,6 +3,7 @@ import gradio as gr
 from PIL import Image
 import io
 import requests
+import tempfile
 from typing import Optional, Tuple
 
 def load_environment():
@@ -145,7 +146,7 @@ def query_hf_api(
 
     raise RuntimeError("Unexpected error in image generation")
 
-def generate_image(prompt: str, output_format: str = 'png') -> Tuple[Optional[Image.Image], str, Optional[bytes]]:
+def generate_image(prompt: str, output_format: str = 'png') -> Tuple[Optional[Image.Image], str, Optional[str]]:
     """
     Generate an image from a text prompt.
     
@@ -154,8 +155,8 @@ def generate_image(prompt: str, output_format: str = 'png') -> Tuple[Optional[Im
         output_format (str): Desired output format
     
     Returns:
-        Tuple[Optional[Image.Image], str, Optional[bytes]]: 
-        Generated PIL Image, status message, and downloadable image bytes
+        Tuple[Optional[Image.Image], str, Optional[str]]: 
+        Generated PIL Image, status message, and path to downloadable image
     """
     try:
         # Validate prompt
@@ -169,13 +170,17 @@ def generate_image(prompt: str, output_format: str = 'png') -> Tuple[Optional[Im
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         
         # Convert image to specified format
-        downloadable_image = convert_image(image, output_format)
+        image_data = convert_image(image, output_format)
         
-        # Create a temporary file for download
-        temp_file = io.BytesIO(downloadable_image)
-        temp_file.name = f"generated_image.{output_format.lower()}"
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(
+            delete=False, 
+            suffix=f'.{output_format.lower()}'
+        ) as temp_file:
+            temp_file.write(image_data)
+            temp_file_path = temp_file.name
         
-        return image, "Image generated successfully!", temp_file
+        return image, "Image generated successfully!", temp_file_path
     
     except Exception as e:
         print(f"Image generation error: {e}")
@@ -227,11 +232,11 @@ def create_gradio_interface():
         # Status Output
         status_output = gr.Textbox(label="Status")
         
-        # Download Button (Fixed to use binary type)
+        # Download Button 
         download_button = gr.File(
             label="Download Image",
             file_count="single",
-            type="binary"  # Changed from 'file' to 'binary'
+            type="filepath"  # Use filepath type
         )
         
         # Event Handlers
@@ -252,7 +257,7 @@ def main():
         demo.launch(
             server_name="0.0.0.0",  # Listen on all network interfaces
             server_port=7860,  # Default Gradio port
-            share=False  # Set to True if you want a public link
+            share=True  # Set to True for a public link
         )
     except Exception as e:
         print(f"Error launching Gradio app: {e}")
