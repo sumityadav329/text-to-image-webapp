@@ -3,7 +3,6 @@ import gradio as gr
 from PIL import Image
 import io
 import requests
-import tempfile
 from typing import Optional, Tuple
 
 def load_environment():
@@ -20,44 +19,6 @@ def load_environment():
         print("python-dotenv not installed. Ensure HF_TOKEN is set in environment.")
     
     return os.getenv("HF_TOKEN")
-
-def convert_image(image: Image.Image, format: str = 'png') -> bytes:
-    """
-    Convert PIL Image to specified format in memory.
-    
-    Args:
-        image (Image.Image): Input PIL Image
-        format (str): Desired output format (png, jpg, webp)
-    
-    Returns:
-        bytes: Image converted to specified format
-    """
-    # Supported formats with their MIME types
-    supported_formats = {
-        'png': 'image/png',
-        'jpg': 'image/jpeg',
-        'jpeg': 'image/jpeg',
-        'webp': 'image/webp'
-    }
-    
-    # Normalize format
-    format = format.lower()
-    
-    # Validate format
-    if format not in supported_formats:
-        raise ValueError(f"Unsupported format. Choose from: {', '.join(supported_formats.keys())}")
-    
-    # Convert image
-    byte_array = io.BytesIO()
-    
-    # Special handling for JPEG to ensure no alpha channel
-    if format in ['jpg', 'jpeg']:
-        image = image.convert('RGB')
-    
-    # Save image to byte array
-    image.save(byte_array, format=format)
-    
-    return byte_array.getvalue()
 
 def craft_realistic_prompt(base_prompt: str) -> str:
     """
@@ -146,22 +107,21 @@ def query_hf_api(
 
     raise RuntimeError("Unexpected error in image generation")
 
-def generate_image(prompt: str, output_format: str = 'png') -> Tuple[Optional[Image.Image], str, Optional[bytes]]:
+def generate_image(prompt: str) -> Tuple[Optional[Image.Image], str]:
     """
     Generate an image from a text prompt.
     
     Args:
         prompt (str): Text description for image generation
-        output_format (str): Desired output format
     
     Returns:
-        Tuple[Optional[Image.Image], str, Optional[bytes]]: 
-        Generated PIL Image, status message, and downloadable image bytes
+        Tuple[Optional[Image.Image], str]: 
+        Generated PIL Image and status message
     """
     try:
         # Validate prompt
         if not prompt or not prompt.strip():
-            return None, "Error: Prompt cannot be empty", None
+            return None, "Error: Prompt cannot be empty"
         
         # Generate image bytes
         image_bytes = query_hf_api(prompt)
@@ -169,14 +129,11 @@ def generate_image(prompt: str, output_format: str = 'png') -> Tuple[Optional[Im
         # Convert to PIL Image
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         
-        # Convert image to specified format
-        downloadable_image = convert_image(image, output_format)
-        
-        return image, "Image generated successfully!", downloadable_image
+        return image, "Image generated successfully!"
     
     except Exception as e:
         print(f"Image generation error: {e}")
-        return None, f"Error: {str(e)}", None
+        return None, f"Error: {str(e)}"
 
 def create_gradio_interface():
     """
@@ -193,9 +150,6 @@ def create_gradio_interface():
         gr.Markdown("# 🎨 AI Image Generator")
         gr.Markdown("Generate stunning images from your text prompts using AI!")
         
-        # State to store generated image bytes
-        image_bytes_state = gr.State(None)
-        
         # Input and Output Components
         with gr.Row():
             with gr.Column(scale=3):
@@ -206,18 +160,8 @@ def create_gradio_interface():
                     lines=3
                 )
                 
-                # Format Selection Dropdown
-                format_dropdown = gr.Dropdown(
-                    choices=['PNG', 'JPEG', 'WebP'],
-                    value='PNG',
-                    label="Output Image Format"
-                )
-                
                 # Generate Button
                 generate_button = gr.Button("✨ Generate Image", variant="primary")
-                
-                # Download Button 
-                download_button = gr.Button("💾 Download Image", variant="secondary")
             
             # Output Image Display
             with gr.Column(scale=4):
@@ -231,30 +175,10 @@ def create_gradio_interface():
         status_output = gr.Textbox(label="Status")
         
         # Event Handlers
-        generate_result = generate_button.click(
+        generate_button.click(
             fn=generate_image,
-            inputs=[text_input, format_dropdown],
-            outputs=[output_image, status_output, image_bytes_state]
-        )
-        
-        # Download event handler
-        def download_image(image_bytes):
-            if image_bytes is None:
-                return None
-            
-            # Create a temporary file
-            with tempfile.NamedTemporaryFile(
-                delete=False, 
-                suffix='.png',  # Default to PNG
-                prefix='ai_generated_'
-            ) as temp_file:
-                temp_file.write(image_bytes)
-                return temp_file.name
-        
-        download_button.click(
-            fn=download_image,
-            inputs=[image_bytes_state],
-            outputs=gr.File(label="Download Generated Image")
+            inputs=[text_input],
+            outputs=[output_image, status_output]
         )
     
     return demo
